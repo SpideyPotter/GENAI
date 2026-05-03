@@ -1,0 +1,102 @@
+# GenAI / ML workspace — Python, caches, secrets, large HF dirs
+
+# Byte-compiled / caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Test / type / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+.tox/
+.hypothesis/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Environment & secrets (never commit)
+.env
+.env.*
+!.env.example
+hfkey.txt
+*hf_token*
+.training_email_config
+
+# Hugging Face / local caches
+.cache/
+**/.cache/huggingface/
+
+# --- Datasets & generated QA (large / local only; do not commit) ---
+QA_us_data/
+QA_us_data_smoketest/
+QAdata/
+greenagriculture_QA/
+greenagriculture_chunked/
+us_web_chunks/
+# Training JSON in final_finetune_stage1; keep *.py if present
+final_finetune_stage1/*.json
+final_finetune_stage1/*.jsonl
+
+# --- Fine-tuned models & checkpoints (large; use LFS or object storage elsewhere) ---
+FineTunedmodels/
+llama3_agri_finetuned/
+llama31-8b-base-agro-qlora/
+
+# Common weight filenames anywhere under repo (enable if something slips outside dirs above)
+*.safetensors
+*.safetensors.index.json
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.h5
+*.onnx
+*.gguf
+*.msgpack
+
+# Exceptions: tiny tokenizer JSON is sometimes committed with code — uncomment if you need to track small configs inside ignored trees
+# !**/tokenizer_config.json
+
+# Experiment / run outputs (adjust if you version some of these)
+wandb/
+mlruns/
+lightning_logs/
+outputs/
+runs/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.orig
+
+# Frontend (if you add a bundler under web/)
+node_modules/
+
+# Logs (optional — remove line if you want logs in git)
+*.log
+
+# Shell / accidental home artifacts in repo root
+.bash_history

@@ -1,0 +1,116 @@
+# Kubernetes Job: QA synthesis (synthesis.py) with optional hourly email (training_email.py daemon).
+#
+# Prereqs:
+#   - Adjust hostPath.path to a directory on the *node* that schedules the pod (same idea as genai.yaml).
+#   - GPU resource name: change nvidia.com/mig-2g.35gb if your cluster uses nvidia.com/gpu or another MIG profile.
+#
+# Email (hourly: qa_synthesis.log tail + nvidia-smi; training_email.py is synthesis-only):
+#   Put INTERVAL_SECONDS=3600 (and optional SYNTHESIS_LOG, PROCESS_MATCH) in .training_email_config.
+#   Safer: create a Secret and mount it (see optional volume below).
+#
+#   kubectl create secret generic training-email-config \
+#     --from-file=.training_email_config=/path/to/.training_email_config
+#
+# Apply:
+#   kubectl apply -f k8s/job-genai-qa.yaml
+#
+# Watch:
+#   kubectl logs -f job/genai-qa-synthesis -c synthesis
+#
+# Delete job (and pods):
+#   kubectl delete job genai-qa-synthesis
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: genai-qa-synthesis
+  labels:
+    app.kubernetes.io/name: genai-qa
+spec:
+  # Retries after a failed pod (OOM, node loss). Training restarts from checkpoints if --resume (default).
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 604800
+  # Wall clock cap (72h); increase for very large corpora.
+  activeDeadlineSeconds: 259200
+  parallelism: 1
+  completions: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: genai-qa
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: synthesis
+          image: bmu-headnode:9443/nvcr.io/nvidia/pytorch:24.10-py3
+          workingDir: /workspace
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -euo pipefail
+              cd /workspace
+              EMAIL_PID=""
+              if [[ -f .training_email_config ]]; then
+                export TRAINING_EMAIL_CONFIG=.training_email_config
+                python training_email.py daemon &
+                EMAIL_PID=$!
+                echo "email daemon pid=${EMAIL_PID}"
+              else
+                echo "No .training_email_config in /workspace — hourly email disabled."
+              fi
+              cleanup() {
+                if [[ -n "${EMAIL_PID:-}" ]]; then
+                  kill "${EMAIL_PID}" 2>/dev/null || true
+                fi
+              }
+              trap cleanup EXIT INT TERM
+              exec python synthesis.py \
+                --dtype "${SYNTH_DTYPE:-fp16}" \
+                --batch_size "${SYNTH_BATCH:-4}" \
+                --input_dir "${SYNTH_INPUT_DIR:-chunkeddata}" \
+                --output_dir "${SYNTH_OUTPUT_DIR:-QAdata}"
+          resources:
+            requests:
+              cpu: "16"
+              memory: "30Gi"
+              nvidia.com/mig-2g.35gb: "1"
+            limits:
+              cpu: "16"
+              memory: "32Gi"
+              nvidia.com/mig-2g.35gb: "1"
+          env:
+            - name: HOME
+              value: /workspace
+            - name: SYNTH_DTYPE
+              value: "fp16"
+            - name: SYNTH_BATCH
+              value: "4"
+            - name: SYNTH_INPUT_DIR
+              value: "chunkeddata"
+            - name: SYNTH_OUTPUT_DIR
+              value: "QAdata"
+            - name: TRAINING_EMAIL_CONFIG
+              value: ".training_email_config"
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: dshm
+              mountPath: /dev/shm
+            # Uncomment after creating Secret `training-email-config` (do not commit real credentials to git).
+            # - name: email-config
+            #   mountPath: /workspace/.training_email_config
+            #   subPath: .training_email_config
+            #   readOnly: true
+      volumes:
+        - name: workspace
+          hostPath:
+            path: /home/dgx-s-bmu-cse-230480/genai
+            type: Directory
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
+        # - name: email-config
+        #   secret:
+        #     secretName: training-email-config
+        #     optional: true

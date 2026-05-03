@@ -1,0 +1,146 @@
+finetune_phase1 — metrics reference (QLoRA / SFT, Hugging Face Trainer + TRL)
+================================================================================
+
+This file describes the training ("train") and text-related metrics you will see
+in logs and in trainer.save_state() / Trainer.train() summary output.
+
+Section 0 below records values copied from one completed Phase 1 run
+(terminal capture, 2026-04-23). Intermediate lines are only a sample where
+full logs were not archived.
+
+
+0. CAPTURED RUN — Phase 1 (2026-04-23)
+--------------------------------------
+
+Run context (from console):
+  Steps completed: 624 / 624
+  Wall time (progress bar): ~24m 25s for full pass of steps
+  Adapters saved: ./llama31-8b-base-agro-qlora/lora_adapters
+
+Trainer end-of-run summary (verbatim dict as printed):
+  {'train_runtime': '1465',
+   'train_samples_per_second': '13.62',
+   'train_steps_per_second': '0.426',
+   'train_loss': '1.7',
+   'epoch': '3'}
+
+Progress snapshot (step 556/624, ~89% — bar timing sample):
+  556/624 [21:06<02:15, 1.99s/it]
+
+Sample training log lines (same run, late training — printed every logging_steps;
+includes train + text-oriented fields):
+
+  {'loss': '1.445', 'grad_norm': '1.297', 'learning_rate': '4.925e-05',
+   'entropy': '1.549', 'num_tokens': '7.611e+05', 'mean_token_accuracy': '0.6909',
+   'epoch': '2.043'}
+
+  {'loss': '1.237', 'grad_norm': '1.109', 'learning_rate': '3.852e-05',
+   'entropy': '1.332', 'num_tokens': '8.054e+05', 'mean_token_accuracy': '0.7429',
+   'epoch': '2.163'}
+
+  {'loss': '1.241', 'grad_norm': '1.086', 'learning_rate': '2.883e-05',
+   'entropy': '1.343', 'num_tokens': '8.496e+05', 'mean_token_accuracy': '0.7425',
+   'epoch': '2.284'}
+
+  {'loss': '1.215', 'grad_norm': '1.109', 'learning_rate': '2.034e-05',
+   'entropy': '1.324', 'num_tokens': '8.93e+05', 'mean_token_accuracy': '0.751',
+   'epoch': '2.404'}
+
+  {'loss': '1.138', 'grad_norm': '0.9844', 'learning_rate': '1.318e-05',
+   'entropy': '1.235', 'num_tokens': '9.429e+05', 'mean_token_accuracy': '0.7622',
+   'epoch': '2.524'}
+
+  {'loss': '1.171', 'grad_norm': '1.102', 'learning_rate': '7.488e-06',
+   'entropy': '1.286', 'num_tokens': '9.889e+05', 'mean_token_accuracy': '0.7561',
+   'epoch': '2.644'}
+
+Final step bar (same run):
+  100%|...| 624/624 [24:25<00:00, 2.35s/it]
+
+Note: eval_* metrics were not appended to this capture; if your trainer logs
+eval_loss at eval_steps, paste those lines under this section for future runs.
+
+
+1. TRAINING METRICS (logged during train(), often every logging_steps)
+------------------------------------------------------------------------
+
+loss
+  Scalar loss minimized during SFT (typically cross-entropy on next-token
+  prediction over the supervised targets). Lower is usually better on the
+  training batch; small upward spikes are normal noise.
+
+grad_norm
+  Global norm of gradients (often post-clipping or for monitoring). Large
+  sustained spikes can indicate instability; very small values can mean weak
+  signal or aggressive clipping depending on setup.
+
+learning_rate
+  Current optimizer learning rate after warmup and scheduler (e.g. cosine).
+  Should match your schedule: rises during warmup, then decays if configured.
+
+epoch
+  Fractional training epoch (e.g. 2.644 means ~2.64 passes over the training
+  split, given how steps map to dataset size).
+
+train_runtime (summary only, seconds)
+  Wall-clock seconds for the full training run.
+
+train_steps_per_second (summary)
+  Optimizer steps completed per second (world-size aware where applicable).
+
+train_samples_per_second (summary)
+  Dataset samples processed per second (depends on per_device batch size,
+  gradient accumulation, and number of processes).
+
+train_loss (summary)
+  Run-level average training loss reported at end of training. Can differ
+  slightly from the last few step logs depending on how the trainer averages.
+
+
+2. TEXT / TOKEN METRICS (TRL SFT and similar setups)
+-----------------------------------------------------
+
+num_tokens
+  Cumulative count of tokens seen in training (as reported by the trainer).
+  Useful for scaling laws thinking and comparing runs.
+
+mean_token_accuracy
+  Fraction of next-token positions where the model's argmax prediction equals
+  the target token (on the logged window). Rises when the model memorizes or
+  fits the supervised format; interpret alongside eval and qualitative samples.
+
+entropy (when logged)
+  Average predictive entropy over the window — how "spread out" the next-token
+  distribution is. Moves with model confidence and task difficulty; use as a
+  secondary signal, not a single objective.
+
+
+3. EVAL METRICS (when evaluation_strategy / eval_strategy is enabled)
+----------------------------------------------------------------------
+
+eval_loss
+  Loss on the held-out eval split at eval_steps. Primary signal for
+  overfitting: train_loss down while eval_loss rises suggests too many epochs
+  or too high LR.
+
+eval_runtime, eval_samples_per_second
+  Timing for evaluation passes.
+
+
+4. QUICK READING ORDER FOR A RUN
+--------------------------------
+
+1) eval_loss trend vs train_loss (if eval is on)
+2) mean_token_accuracy and loss together (fit vs noise)
+3) grad_norm for stability
+4) train_runtime / throughput for cost and reproducibility
+
+
+5. WHERE ADAPTER WEIGHTS GO (this project)
+-----------------------------------------
+
+LoRA adapters are saved under the output_dir, e.g.:
+  <output_dir>/lora_adapters
+
+Inference still needs the same base model id/path plus loading of these adapters
+unless you merged weights into a full checkpoint.
