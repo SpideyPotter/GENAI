@@ -112,6 +112,29 @@ def _ensure_model(model_key: str, paths: dict[str, str]) -> None:
     _loaded_key = model_key
 
 
+def _eos_token_ids(tokenizer: Any) -> int | list[int]:
+    """Llama 3.x chat ends assistant turns with <|eot_id|>, not only <|end_of_text|>.
+    If generate() only gets eos_token_id, decoding often runs to max_new_tokens and loops."""
+    ids: list[int] = []
+    if tokenizer.eos_token_id is not None:
+        ids.append(int(tokenizer.eos_token_id))
+    unk = getattr(tokenizer, "unk_token_id", None)
+    for piece in ("<|eot_id|>", "<|eom_id|>"):
+        try:
+            tid = int(tokenizer.convert_tokens_to_ids(piece))
+        except (TypeError, ValueError):
+            continue
+        if tid < 0 or tid == unk:
+            continue
+        if tid not in ids:
+            ids.append(tid)
+    if not ids:
+        raise RuntimeError("Tokenizer has no eos_token_id; cannot generate.")
+    if len(ids) == 1:
+        return ids[0]
+    return ids
+
+
 def _build_prompt(tokenizer: Any, system: str, history: list[dict[str, Any]], message: str) -> str:
     messages: list[dict[str, str]] = []
     if system.strip():
@@ -160,6 +183,7 @@ def create_app(paths: dict[str, str], max_new_tokens: int) -> FastAPI:
         system = (body.system or DEFAULT_SYSTEM).strip() or DEFAULT_SYSTEM
         prompt = _build_prompt(_tokenizer, system, body.history, body.message)
         batch = _tokenizer(prompt, return_tensors="pt").to(_model.device)
+        stop_ids = _eos_token_ids(_tokenizer)
         with torch.inference_mode():
             gen_ids = _model.generate(
                 **batch,
@@ -167,8 +191,9 @@ def create_app(paths: dict[str, str], max_new_tokens: int) -> FastAPI:
                 temperature=0.7,
                 top_p=0.9,
                 max_new_tokens=max_new_tokens,
-                pad_token_id=_tokenizer.eos_token_id,
-                eos_token_id=_tokenizer.eos_token_id,
+                pad_token_id=_tokenizer.pad_token_id or _tokenizer.eos_token_id,
+                eos_token_id=stop_ids,
+                repetition_penalty=1.12,
             )
         new_tokens = gen_ids[0][batch["input_ids"].shape[1] :]
         text = _tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
@@ -181,7 +206,12 @@ def main() -> None:
     p = argparse.ArgumentParser(description="AgriChat inference API for web/app.js")
     p.add_argument("--host", default="0.0.0.0")
     p.add_argument("--port", type=int, default=8000)
-    p.add_argument("--max-new-tokens", type=int, default=512)
+    p.add_argument(
+        "--max-new-tokens",
+        type=int,
+        default=384,
+        help="Cap decoding length (assistant should stop earlier via <|eot_id|>).",
+    )
     args = p.parse_args()
 
     paths = dict(DEFAULT_MODEL_PATHS)

@@ -150,6 +150,18 @@ select option {
   color: rgba(241, 250, 238, 0.45);
 }
 
+.api-presets {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.25rem;
+}
+
+.api-presets .btn-small {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.72rem;
+}
+
 .hint {
   font-size: 0.72rem;
   line-height: 1.4;

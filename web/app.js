@@ -81,8 +81,24 @@
     return JSON.stringify(data);
   }
 
+  function isDemoGreetingOrChitchat(lower) {
+    const t = lower.trim().replace(/\s+/g, " ");
+    if (t.length <= 20 && /^(hi|hey|hello|yo|sup|hiya)\b[!.?…\s]*$/i.test(t)) return true;
+    if (/^(hi|hey|hello|howdy|good (morning|afternoon|evening)|hiya)\b/.test(t)) return true;
+    if (/^(thanks|thank you|thx|bye|goodbye)\b/.test(t)) return true;
+    if (/^what('s| is) (up|new)\b/.test(t)) return true;
+    return false;
+  }
+
   function demoReply(userText) {
     const lower = userText.toLowerCase();
+    if (isDemoGreetingOrChitchat(lower)) {
+      return (
+        "Hi — in demo mode there is no model call yet. " +
+        "Paste your inference API URL in the sidebar when you have one; until then, try asking about soil, pests, or irrigation for sample agronomy replies. " +
+        "What crop or problem are you working on?"
+      );
+    }
     if (lower.includes("soil") || lower.includes("nitrogen"))
       return "For soil health, start with a recent soil test (pH, organic matter, N-P-K). Match nitrogen applications to crop stage and use split applications where runoff risk is high. Cover crops between seasons help build organic matter and reduce erosion.";
     if (lower.includes("pest") || lower.includes("insect"))
@@ -90,9 +106,9 @@
     if (lower.includes("water") || lower.includes("irrigation"))
       return "Match irrigation to soil moisture and crop growth stage. Tools like tensiometers or soil probes reduce over-watering. Early morning irrigation often cuts disease pressure compared to evening wet foliage.";
     return (
-      "Thanks for your question about agriculture. In a full setup, this answer would come from your fine-tuned model. " +
-      "Set the API URL in the sidebar to your inference server (POST JSON with `message` and optional `model`). " +
-      "Meanwhile: be specific about your crop, region, and season for the most useful agronomic advice."
+      "Demo mode only shows canned examples unless the API URL is set. " +
+      "Add your server URL in the sidebar (POST JSON: message, optional model) for answers from your fine-tuned model. " +
+      "For the richest demo replies here, mention soil, pests, or irrigation — or name your crop, region, and season."
     );
   }
 
@@ -187,9 +203,22 @@
     setStatus(!(els.apiUrl.value || "").trim());
   });
 
-  els.apiUrl.addEventListener("change", () => {
-    setStatus(!(els.apiUrl.value || "").trim());
-  });
+  function persistApiUrl() {
+    const t = (els.apiUrl.value || "").trim();
+    localStorage.setItem("agrichat_api_url", t);
+    setStatus(!t);
+  }
+
+  /** If UI is opened on common port-forward locals, pre-fill matching API port. */
+  function inferDefaultApiUrl() {
+    if ((els.apiUrl.value || "").trim()) return;
+    const h = location.hostname;
+    if (h !== "127.0.0.1" && h !== "localhost") return;
+    const port = location.port || "";
+    if (port === "18765") els.apiUrl.value = `http://${h}:18000/chat`;
+    else if (port === "8765") els.apiUrl.value = `http://${h}:8000/chat`;
+    if ((els.apiUrl.value || "").trim()) persistApiUrl();
+  }
 
   function welcome() {
     const intro =
@@ -200,6 +229,13 @@
 
   const savedUrl = localStorage.getItem("agrichat_api_url");
   if (savedUrl) els.apiUrl.value = savedUrl;
+  try {
+    const qp = new URLSearchParams(window.location.search).get("api");
+    if (qp && !(els.apiUrl.value || "").trim()) els.apiUrl.value = qp;
+  } catch {
+    /* ignore */
+  }
+  inferDefaultApiUrl();
 
   loadHistory();
   if (history.length) {
@@ -210,9 +246,18 @@
     setStatus(!(els.apiUrl.value || "").trim());
   }
 
-  els.apiUrl.addEventListener("change", () => {
-    localStorage.setItem("agrichat_api_url", els.apiUrl.value.trim());
-    setStatus(!(els.apiUrl.value || "").trim());
+  els.apiUrl.addEventListener("change", persistApiUrl);
+  els.apiUrl.addEventListener("input", persistApiUrl);
+
+  document.getElementById("btn-api-18000")?.addEventListener("click", () => {
+    els.apiUrl.value = `http://${location.hostname}:18000/chat`;
+    persistApiUrl();
+    els.input.focus();
+  });
+  document.getElementById("btn-api-8000")?.addEventListener("click", () => {
+    els.apiUrl.value = `http://${location.hostname}:8000/chat`;
+    persistApiUrl();
+    els.input.focus();
   });
 
   els.input.focus();

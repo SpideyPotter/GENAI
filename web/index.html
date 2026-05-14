@@ -3,6 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <title>AgriChat — Agriculture Assistant</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -10,7 +11,7 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=2" />
     <!--
       Serve this folder (use another port if 8080 is busy, e.g. 8765):
         ./serve.sh
@@ -47,13 +48,27 @@
           <div class="api-row">
             <input
               id="api-url"
-              type="url"
-              placeholder="https://localhost:8000/chat"
+              type="text"
+              inputmode="url"
+              spellcheck="false"
+              placeholder="http://127.0.0.1:18000/chat"
               autocomplete="off"
               aria-label="Backend chat endpoint"
             />
           </div>
-          <p class="hint">Leave empty for demo replies. Use HTTPS in production.</p>
+          <div class="api-row api-presets">
+            <button type="button" class="btn-ghost btn-small" id="btn-api-18000" title="Typical Mac port-forward: 18000:8000">
+              Use API port 18000
+            </button>
+            <button type="button" class="btn-ghost btn-small" id="btn-api-8000" title="If you forward 8000:8000 on this machine">
+              Use API port 8000
+            </button>
+          </div>
+          <p class="hint">
+            Leave empty for demo replies (header shows "Demo mode"). With port-forward use
+            <code>http://127.0.0.1:YOUR_LOCAL_PORT/chat</code> — the left port in
+            <code>kubectl port-forward … LOCAL:8000</code>.
+          </p>
         </div>
 
         <div class="sidebar-actions">
@@ -88,6 +103,6 @@
         </footer>
       </main>
     </div>
-    <script src="app.js"></script>
+    <script src="app.js?v=4"></script>
   </body>
 </html>
